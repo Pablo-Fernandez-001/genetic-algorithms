@@ -121,6 +121,7 @@ unsigned rouletteWheelSelection() {
     //return POPULATION_SIZE - 1; // Return the last individual if not found
 }
 
+// Perform crossover between two parents to produce two children
 void crossover(Individual* father, Individual* mother, Individual* child1, Individual* child2) {
     int i = 0;
     if(flip(crossover_probability)) {
