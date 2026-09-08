@@ -121,7 +121,7 @@ unsigned rouletteWheelSelection() {
     //return POPULATION_SIZE - 1; // Return the last individual if not found
 }
 
-// Perform crossover between two parents to produce two children
+// Perform crossover between two parents to produce two children maybe with an error in p+i
 void crossover(Individual* father, Individual* mother, Individual* child1, Individual* child2) {
     int i = 0;
     if(flip(crossover_probability)) {
@@ -146,6 +146,40 @@ void crossover(Individual* father, Individual* mother, Individual* child1, Indiv
         child1->crossover_place = child2->crossover_place = -1; // No crossover occurred
     }
 }
+
+/* Fixed code?
+// Perform crossover between two parents to produce two children
+void crossover(Individual* father, Individual* mother, Individual* child1, Individual* child2) {
+    int i = 0;
+    if(flip(crossover_probability)) {
+        // Randomly select a crossover point between 1 and chromosome_length - 1
+        // (Also fixed the typo: radomDouble -> randomDouble)
+        unsigned p = (unsigned)randomDouble(1, chromosome_length - 1); 
+        
+        // 1. Copy genes BEFORE the crossover point 'p'
+        for(i = 0; i < p; i++) {
+            child1->chromosome[i] = father->chromosome[i]; // Child 1 gets Father's head
+            child2->chromosome[i] = mother->chromosome[i]; // Child 2 gets Mother's head
+        }
+        
+        // 2. Swap and copy genes FROM 'p' to the end of the chromosome
+        for(i = p; i < chromosome_length; i++) {
+            child1->chromosome[i] = mother->chromosome[i]; // Child 1 gets Mother's tail
+            child2->chromosome[i] = father->chromosome[i]; // Child 2 gets Father's tail
+        }
+        child1->crossover_place = child2->crossover_place = p;
+    } else {
+        // If no crossover occurs, clone parents directly
+        for(i = 0; i < chromosome_length; i++) {
+            child1->chromosome[i] = father->chromosome[i];
+            child2->chromosome[i] = mother->chromosome[i];
+        }
+        child1->crossover_place = child2->crossover_place = -1;
+    }
+}
+
+
+*/
 
 // Main function
 int main(){
