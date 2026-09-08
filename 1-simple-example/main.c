@@ -25,7 +25,9 @@ Individual* parents;
 Individual* offspring;
 double* roulette;
 
+// Util variables
 unsigned chromosome_length;
+double crossover_probability;
 
 // Function to serve the memory for the individuals
 void allocateMemory() {
@@ -116,8 +118,33 @@ unsigned rouletteWheelSelection() {
             return i; // Return the index of the selected individual
         }
     }
+    //return POPULATION_SIZE - 1; // Return the last individual if not found
 }
 
+void crossover(Individual* father, Individual* mother, Individual* child1, Individual* child2) {
+    int i = 0;
+    if(flip(crossover_probability)) {
+        // Randomly select a crossover point
+        unsigned p = (unsigned)radomDouble(1, chromosome_length - 2); // Randomly select a crossover point
+        // Copy genes from parents to children based on the crossover point
+        for(i = 0; i < p; i++) {
+            child1->chromosome[i] = father->chromosome[i]; // Copy genes from father to child1 up to the crossover point
+            child2->chromosome[p+i] = mother->chromosome[i]; // Copy genes from mother to child2 up to the crossover point
+        }
+        // Copy the remaining genes from the other parent to the children after the crossover point
+        for(i = p+1; i < chromosome_length; i++) {
+            child1->chromosome[i] = mother->chromosome[i]; // Copy genes from mother to child1 after the crossover point
+            child2->chromosome[i-p-1] = father->chromosome[i]; // Copy genes from father to child2 after the crossover point
+        }
+        child1->crossover_place = child2->crossover_place = p; // Store the crossover point in the children
+    } else {
+       for(i = 0; i < chromosome_length; i++) {
+            child1->chromosome[i] = father->chromosome[i]; // Copy genes from father to child1 without crossover
+            child2->chromosome[i] = mother->chromosome[i]; // Copy genes from mother to child2 without crossover
+        }
+        child1->crossover_place = child2->crossover_place = -1; // No crossover occurred
+    }
+}
 
 // Main function
 int main(){
