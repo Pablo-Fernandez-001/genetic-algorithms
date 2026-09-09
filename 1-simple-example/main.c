@@ -31,6 +31,7 @@ unsigned chromosome_length;
 double crossover_probability;
 double mutation_probability;
 unsigned generation_count;
+unsigned selected_father, selected_mother; // Variables to store the selected parents for crossover
 
 
 // Function to get the parameters from the user
@@ -52,17 +53,29 @@ void getParameters() {
 // Function to serve the memory for the individuals
 void allocateMemory() {
     unsigned required_bytes = POPULATION_SIZE * sizeof(Individual);
+
     parents = (Individual*)malloc(required_bytes);
     offspring = (Individual*)malloc(required_bytes);
-    roulette = (double*)malloc(POPULATION_SIZE * sizeof(double));
+
     // Chromosome allocation for each individual
     chromosome_length = ceil(log2((FX_UPPER_BOUND - FX_LOZER_BOUND) * pow(10, PRECISION))); // Ceil function to the next nearest integer
-    required_bytes = chromosome_length * sizeof(int);
 
+    // We change malloc to calloc to initialize the memory to zero, and avoid garbage values in the chromosome
+    // calloc initializes the allocated memory to zero, while malloc does not initialize the memory, leaving it 
+    // with garbage values
     for (int i = 0; i < POPULATION_SIZE; i++) {
-        parents[i].chromosome = (int*)malloc(required_bytes); // Chromosome allocation for each individual parent
-        offspring[i].chromosome = (int*)malloc(required_bytes); // Chromosome allocation for each individual offspring
+        parents[i].chromosome = (int*) calloc(chromosome_length, sizeof(int)); // Chromosome allocation for each individual parent
+        offspring[i].chromosome = (int*) calloc(chromosome_length, sizeof(int)); // Chromosome allocation for each individual offspring
+        parents[i].x = offspring[i].x = RAND_MAX; // Randomly assigning a value to x
+        parents[i].fitness = offspring[i].fitness = 0; // Randomly assigning a value to fitness, the lowest value is 0 and the highest is 1
+        parents[i].parents[0] = offspring[i].parents[0] = -1; // No parents for the first generation in a double array of size 2, and equally initialized to -1
+        parents[i].parents[1] = offspring[i].parents[1] = -1; // No parents for the first generation in a double array of size 2, and equally initialized to -1
+        parents[i].crossover_place = offspring[i].crossover_place = -1; // No crossover for the first generation, and equally initialized to -1
+        parents[i].mutation_place = offspring[i].mutation_place = -1; // No mutation for the first generation, and equally initialized to -1
     }
+
+    best_individual.chromosome = (int*) calloc(chromosome_length, sizeof(int)); // Chromosome allocation for the best individual
+    roulette = (double*) malloc(POPULATION_SIZE * sizeof(double)); // Roulette wheel selection probabilities allocation
 }
 
 //random number generator function from an interval [a, b]
@@ -72,17 +85,12 @@ double randomDouble(double a, double b) {
 
 // Flip a coin function to get a random value of 0 or 1 based on a given probability
 int flip(double probability) {
-    return (randomDouble(0, 1) < probability) ? 0 : 1;
+    return (randomDouble(0, 1) <= probability) ? 1 : 0;
 }
 
 // creating the populations
 void createFirstGeneration(){
-     for(int i =0; i < POPULATION_SIZE; i++){
-        parents[i].x = RAND_MAX; // Randomly assigning a value to x
-        parents[i].fitness = 0; // Randomly assigning a value to fitness, the lowest value is 0 and the highest is 1
-        parents[i].parents[0] = parents[i].parents[1] = -1; // No parents for the first generation in a double array of size 2, and equally initialized to -1
-        parents[i].mutation_place = parents[i].crossover_place = -1;
-
+    for(int i =0; i < POPULATION_SIZE; i++){
         for(int j=0; j < chromosome_length; j++){
             parents[i].chromosome[j] = flip(0.5); // Randomly assigning 0 or 1 to each gene in the chromosome
         }
@@ -93,7 +101,9 @@ void createFirstGeneration(){
 double binary2real(int* chromosome) {
     double aux = 0.0;
     for(int i=chromosome_length-1; i >= 0; i--){
-        aux += chromosome[i] * pow(2, chromosome_length - 1 - i);
+        if(chromosome[i] == 1){
+            aux += pow(2, chromosome_length - i - 1); // Convert binary to decimal
+        }
     }
     return FX_LOZER_BOUND + (( aux * (FX_UPPER_BOUND - FX_LOZER_BOUND) ) / (pow(2, chromosome_length) - 1));
 }
@@ -131,18 +141,18 @@ void updateRoulette(Individual* population) {
 unsigned rouletteWheelSelection() {
     double r = randomDouble(0, 1);
     double sum = 0.0;
+    int current_individual;
     // the worst probability to have could be 1 
     for (int i = 0; sum < r; i++) {
-        sum += roulette[i];
-        if (sum >= r) {
-            return i; // Return the index of the selected individual
-        }
+        current_individual = i % POPULATION_SIZE; // Wrap around if we exceed the population size
+        sum += roulette[current_individual];
     }
-    //return POPULATION_SIZE - 1; // Return the last individual if not found
+    return current_individual;
 }
 
 // Perform crossover between two parents to produce two children maybe with an error in p+i
 void crossover(Individual* father, Individual* mother, Individual* child1, Individual* child2) {
+    
     int i = 0;
     if(flip(crossover_probability)) {
         // Randomly select a crossover point
@@ -157,13 +167,19 @@ void crossover(Individual* father, Individual* mother, Individual* child1, Indiv
             child1->chromosome[i] = mother->chromosome[i]; // Copy genes from mother to child1 after the crossover point
             child2->chromosome[i-p-1] = father->chromosome[i]; // Copy genes from father to child2 after the crossover point
         }
+
         child1->crossover_place = child2->crossover_place = p; // Store the crossover point in the children
+        child1->parents[0] = child2->parents[0] = selected_father + 1; // Store the index of the father in the children
+        child1->parents[1] = child2->parents[1] = selected_mother + 1; // Store the index of the mother in the children
+
     } else {
        for(i = 0; i < chromosome_length; i++) {
             child1->chromosome[i] = father->chromosome[i]; // Copy genes from father to child1 without crossover
             child2->chromosome[i] = mother->chromosome[i]; // Copy genes from mother to child2 without crossover
         }
         child1->crossover_place = child2->crossover_place = -1; // No crossover occurred
+        child1->parents[0] = child2->parents[0] = 0; // Store the index of the father in the children if the crossover does not occur
+        child1->parents[1] = child2->parents[1] = 0; // Store the index of the mother in the children if the crossover does not occur
     }
 }
 
@@ -220,10 +236,11 @@ void mutation(Individual* individual){
 // Most addapdet will survive to the next generation, and the worst will be replaced by the best of the previous generation
 void elitism(){
     // The 2 worst individuals are replaced by the 2 best individuals of the previous generation
+    unsigned best_parent = 0;
     unsigned worst_child1 = 0, worst_child2 = 0;
     
     // A struct if both have the same memory, and the same order you can only equalize the first one, and the second one will be equal too
-    best_individual = parents[0];
+    // best_individual = parents[0];
 
     for(int i = 0; i < POPULATION_SIZE; i++){
         if(offspring[i].fitness < offspring[worst_child1].fitness){
@@ -232,48 +249,102 @@ void elitism(){
             worst_child2 = i;
         }
 
-        if(parents[i].fitness > best_individual.fitness){
-            best_individual = parents[i];
+        if(parents[i].fitness > parents[best_parent].fitness){
+            best_parent = i;
         }
     }
 
     // Replace the worst individuals in the offspring with the best individual from the parents
-    offspring[worst_child1] = best_individual;
-    offspring[worst_child2] = best_individual;
+    offspring[worst_child1] = parents[best_parent]; // assigning the best individual from the parents to the worst individual in the offspring
+    offspring[worst_child2] = parents[best_parent]; // assigning the best individual from the parents to the worst individual in the offspring
+}
+
+//Print a cromosome with indicators
+void printChromosome(Individual* individual)
+{
+    int i;
+    for(i = 0; i < chromosome_length; i++) {
+        if(i == individual->mutation_place) printf("(");
+        printf("%d", individual->chromosome[i]);
+        if(i == individual->mutation_place) printf(")");
+        if(i == individual->crossover_place) printf("/");
+    }
+}
+
+// A Population Information
+void printPopulationDetail(Individual* population)
+{
+    int i;
+    printf("\n\n------------------------------------------------------------\n");
+    printf(" #\tChromosome\tx\tFitness\tParents");
+    printf("\n------------------------------------------------------------\n");
+
+    for(i = 0; i < POPULATION_SIZE; i++) {
+        printf("\n%03d  ", i + 1);
+        printChromosome(&population[i]);
+        printf(" %.3f\t%.3f\t(%d,%d)",
+               population[i].x,
+               population[i].fitness,
+               population[i].parents[0],
+               population[i].parents[1]);
+    }
 }
 
 // Main function
-int main(){
-    getParameters(); // Get the parameters from the user
-    srand((long)time(NULL)); // Seed for random number generation
-    // Allocate memory for the individuals
+int main()
+{
+    // Preparation
+    getParameters();
+    srand((long)time(NULL));
     allocateMemory();
-    // Create the first generation of individuals
     createFirstGeneration();
-    // Evaluate the target function for the entire population
     evaluatePopulation(parents);
-    //update roulette wheel selection probabilities based on the fitness of the individuals
-    updateRoulette(parents);
-    // making the generations
-    for(int generation = 0; generation < generation_count; generation++){
+
+    Individual* temp_helper;
+    int generation, i;
+
+    for(generation = 0; generation < generation_count; generation++) {
+
+        updateRoulette(parents);
+        printPopulationDetail(parents);
+
         // Generation process
-        for(int i = 0; i < POPULATION_SIZE; i += 2){
+        for(i = 0; i < POPULATION_SIZE - 1; i += 2) {
+
             // Select parents using roulette wheel selection
-            unsigned father_selected = rouletteWheelSelection();
-            unsigned mother_selected = rouletteWheelSelection();
-            // Perform crossover to produce offspring
-            crossover(&parents[father_selected], &parents[mother_selected], &offspring[i], &offspring[i + 1]);
-            // Perform mutation on the offspring
+            selected_father = rouletteWheelSelection();
+            selected_mother = rouletteWheelSelection();
+
+            // Perform crossover
+            crossover(
+                &parents[selected_father],
+                &parents[selected_mother],
+                &offspring[i],
+                &offspring[i + 1]
+            );
+
+            // Perform mutation
             mutation(&offspring[i]);
             mutation(&offspring[i + 1]);
+
+            // Evaluate offspring
+            evaluateTargetFunction(&offspring[i]);
+            evaluateTargetFunction(&offspring[i + 1]);
         }
-        // Evaluate population
-        evaluatePopulation(offspring);
-        // Apply elitism to ensure the best individuals survive to the next generation
+
+        // Apply elitism
         elitism();
-        parents = offspring; // Move to the next generation
-        // Update roulette wheel selection probabilities based on the fitness of the new population
-        updateRoulette(parents);
+
+        // Swap populations
+        temp_helper = parents;
+        parents = offspring;
+        offspring = temp_helper;
+        printf("\n\n\tGeneration %d completed successfully\n",generation + 1);
     }
+
+    free(parents);
+    free(offspring);
+    free(roulette);
+
     return 0;
 }
