@@ -50,6 +50,7 @@ void getParameters() {
     scanf("%u", &generation_count);
 }
 
+
 // Function to serve the memory for the individuals
 void allocateMemory() {
     unsigned required_bytes = POPULATION_SIZE * sizeof(Individual);
@@ -75,45 +76,53 @@ void allocateMemory() {
     }
 
     best_individual.chromosome = (int*) calloc(chromosome_length, sizeof(int)); // Chromosome allocation for the best individual
+    best_individual.fitness = 0; // Randomly assigning a value to fitness, the lowest value is 0 and the highest is 1
+
     roulette = (double*) malloc(POPULATION_SIZE * sizeof(double)); // Roulette wheel selection probabilities allocation
 }
+
 
 //random number generator function from an interval [a, b]
 double randomDouble(double a, double b) {
     return (b-a) * ((double)rand() / RAND_MAX) + a;
 }
 
+
 // Flip a coin function to get a random value of 0 or 1 based on a given probability
 int flip(double probability) {
     return (randomDouble(0, 1) <= probability) ? 1 : 0;
 }
 
+
 // creating the populations
 void createFirstGeneration(){
-    for(int i =0; i < POPULATION_SIZE; i++){
-        for(int j=0; j < chromosome_length; j++){
+    for(int i = 0; i < POPULATION_SIZE; i++){
+        for(unsigned j = 0; j < chromosome_length; j++){
             parents[i].chromosome[j] = flip(0.5); // Randomly assigning 0 or 1 to each gene in the chromosome
         }
     }
 }
 
+
 //convert binary to decimal function
 double binary2real(int* chromosome) {
     double aux = 0.0;
-    for(int i=chromosome_length-1; i >= 0; i--){
+    for(int i = chromosome_length - 1; i >= 0; i--){
         if(chromosome[i] == 1){
             aux += pow(2, chromosome_length - i - 1); // Convert binary to decimal
         }
     }
-    return FX_LOZER_BOUND + (( aux * (FX_UPPER_BOUND - FX_LOZER_BOUND) ) / (pow(2, chromosome_length) - 1));
+    return FX_LOZER_BOUND + ((aux * (FX_UPPER_BOUND - FX_LOZER_BOUND)) / (pow(2, chromosome_length) - 1));
 }
+
 
 // Evaluate the target function for an individual
 void evaluateTargetFunction(Individual* individual) {
-    individual -> x = binary2real(individual -> chromosome);
-    individual -> fitness = 1/(pow(individual -> x, 2)+0.001); // Example target function: f(x) = x^2, and minimizing
+    individual->x = binary2real(individual->chromosome);
+    individual->fitness = 1/(pow(individual->x, 2)+0.001); // Example target function: f(x) = x^2, and minimizing
     // we uses 0.001 to avoid division by zero when x is 0
 }
+
 
 // Evaluate the target function for the entire population
 void evaluatePopulation(Individual* population) {
@@ -122,13 +131,16 @@ void evaluatePopulation(Individual* population) {
     }
 }
 
+
 // Update the roulette wheel selection probabilities based on the fitness of the individuals
 void updateRoulette(Individual* population) {
     double total_fitness = 0.0;
+
     // Calculate the total fitness of the population
     for (int i = 0; i < POPULATION_SIZE; i++) {
         total_fitness += population[i].fitness;
     }
+
     // Calculate the cumulative probabilities for each individual
     double cumulative_probability = 0.0;
     for (int i = 0; i < POPULATION_SIZE; i++) {
@@ -137,31 +149,38 @@ void updateRoulette(Individual* population) {
     }
 }
 
+
 //Making the selection of the parents based on the roulette wheel selection method, and returning the index of the selected individual
 unsigned rouletteWheelSelection() {
     double r = randomDouble(0, 1);
     double sum = 0.0;
     int current_individual;
+
     // the worst probability to have could be 1 
     for (int i = 0; sum < r; i++) {
         current_individual = i % POPULATION_SIZE; // Wrap around if we exceed the population size
         sum += roulette[current_individual];
     }
+
     return current_individual;
 }
+
 
 // Perform crossover between two parents to produce two children maybe with an error in p+i
 void crossover(Individual* father, Individual* mother, Individual* child1, Individual* child2) {
     
-    int i = 0;
+    unsigned i = 0;
+
     if(flip(crossover_probability)) {
         // Randomly select a crossover point
-        unsigned p = (unsigned)radomDouble(1, chromosome_length - 2); // Randomly select a crossover point
+        unsigned p = (unsigned)randomDouble(1, chromosome_length - 2); // Randomly select a crossover point
+
         // Copy genes from parents to children based on the crossover point
         for(i = 0; i <= p; i++) {
             child1->chromosome[i] = father->chromosome[i]; // Copy genes from father to child1 up to the crossover point
             child2->chromosome[p+i] = mother->chromosome[i]; // Copy genes from mother to child2 up to the crossover point
         }
+
         // Copy the remaining genes from the other parent to the children after the crossover point
         for(i = p+1; i < chromosome_length; i++) {
             child1->chromosome[i] = mother->chromosome[i]; // Copy genes from mother to child1 after the crossover point
@@ -173,23 +192,26 @@ void crossover(Individual* father, Individual* mother, Individual* child1, Indiv
         child1->parents[1] = child2->parents[1] = selected_mother + 1; // Store the index of the mother in the children
 
     } else {
-       for(i = 0; i < chromosome_length; i++) {
+        for(i = 0; i < chromosome_length; i++) {
             child1->chromosome[i] = father->chromosome[i]; // Copy genes from father to child1 without crossover
             child2->chromosome[i] = mother->chromosome[i]; // Copy genes from mother to child2 without crossover
         }
+
         child1->crossover_place = child2->crossover_place = -1; // No crossover occurred
         child1->parents[0] = child2->parents[0] = 0; // Store the index of the father in the children if the crossover does not occur
         child1->parents[1] = child2->parents[1] = 0; // Store the index of the mother in the children if the crossover does not occur
     }
 }
 
+
 /* Fixed code?
+
 // Perform crossover between two parents to produce two children
 void crossover(Individual* father, Individual* mother, Individual* child1, Individual* child2) {
-    int i = 0;
+    unsigned i = 0;
+
     if(flip(crossover_probability)) {
         // Randomly select a crossover point between 1 and chromosome_length - 1
-        // (Also fixed the typo: radomDouble -> randomDouble)
         unsigned p = (unsigned)randomDouble(1, chromosome_length - 1); 
         
         // 1. Copy genes BEFORE the crossover point 'p'
@@ -203,19 +225,22 @@ void crossover(Individual* father, Individual* mother, Individual* child1, Indiv
             child1->chromosome[i] = mother->chromosome[i]; // Child 1 gets Mother's tail
             child2->chromosome[i] = father->chromosome[i]; // Child 2 gets Father's tail
         }
+
         child1->crossover_place = child2->crossover_place = p;
+
     } else {
         // If no crossover occurs, clone parents directly
         for(i = 0; i < chromosome_length; i++) {
             child1->chromosome[i] = father->chromosome[i];
             child2->chromosome[i] = mother->chromosome[i];
         }
+
         child1->crossover_place = child2->crossover_place = -1;
     }
 }
 
-
 */
+
 
 // Perform mutation on an individual
 void mutation(Individual* individual){
@@ -223,9 +248,11 @@ void mutation(Individual* individual){
     if(flip(mutation_probability)) {
         // Randomly select a mutation place
         unsigned p = (unsigned)randomDouble(0, chromosome_length - 1); // in this case we can use 0
+
         // Flip the bit at the mutation point
         individual->chromosome[p] = 1 - individual->chromosome[p]; // Flip the bit at the mutation point
         individual->mutation_place = p; // Store the mutation point in the individual
+
     } else {
         individual->mutation_place = -1; // No mutation occurred
     }
@@ -245,6 +272,7 @@ void elitism(){
     for(int i = 0; i < POPULATION_SIZE; i++){
         if(offspring[i].fitness < offspring[worst_child1].fitness){
             worst_child1 = i;
+
         }else if(offspring[i].fitness < offspring[worst_child2].fitness){
             worst_child2 = i;
         }
@@ -259,22 +287,27 @@ void elitism(){
     offspring[worst_child2] = parents[best_parent]; // assigning the best individual from the parents to the worst individual in the offspring
 }
 
+
 //Print a cromosome with indicators
 void printChromosome(Individual* individual)
 {
-    int i;
+    unsigned i;
+
     for(i = 0; i < chromosome_length; i++) {
-        if(i == individual->mutation_place) printf("(");
+        if((int)i == individual->mutation_place) printf("(");
         printf("%d", individual->chromosome[i]);
-        if(i == individual->mutation_place) printf(")");
-        if(i == individual->crossover_place) printf("/");
+        if((int)i == individual->mutation_place) printf(")");
+        if((int)i == individual->crossover_place) printf("/");
     }
 }
+
 
 // A Population Information
 void printPopulationDetail(Individual* population)
 {
-    int i;
+    int i, current_best = 0;
+    double fitness_average = 0.0;
+
     printf("\n\n------------------------------------------------------------\n");
     printf(" #\tChromosome\tx\tFitness\tParents");
     printf("\n------------------------------------------------------------\n");
@@ -282,13 +315,29 @@ void printPopulationDetail(Individual* population)
     for(i = 0; i < POPULATION_SIZE; i++) {
         printf("\n%03d  ", i + 1);
         printChromosome(&population[i]);
+
         printf(" %.3f\t%.3f\t(%d,%d)",
                population[i].x,
                population[i].fitness,
                population[i].parents[0],
                population[i].parents[1]);
+
+        fitness_average += population[i].fitness;
+
+        if(population[i].fitness > population[current_best].fitness)
+            current_best = i;
+
+        if(population[current_best].fitness > best_individual.fitness)
+            best_individual = population[i];
     }
+
+    fitness_average /= POPULATION_SIZE;
+
+    printf("\n------------------------------------------------------------\n");
+    printf("\nAverage fitness: %.3f\n", fitness_average);
+    printf("\nBest fitness: %.3f\n", population[current_best].fitness);
 }
+
 
 // Main function
 int main()
@@ -301,7 +350,8 @@ int main()
     evaluatePopulation(parents);
 
     Individual* temp_helper;
-    int generation, i;
+    unsigned generation;
+    int i;
 
     for(generation = 0; generation < generation_count; generation++) {
 
@@ -339,8 +389,17 @@ int main()
         temp_helper = parents;
         parents = offspring;
         offspring = temp_helper;
-        printf("\n\n\tGeneration %d completed successfully\n",generation + 1);
+
+        printf("\n\n\tGeneration %u completed successfully\n", generation + 1);
     }
+
+    // ---------------------- ADDED ----------------------
+    printf("\n\n************************************************************");
+    printf("\n\t+\tTHE BEST OF ALL");
+    printf("\n************************************************************");
+    printf("\n\tBinary chromosome: "); printChromosome(&best_individual);
+    printf("\n\tx = %.3f\tFitness = %.3f", best_individual.x, best_individual.fitness);
+    printf("\n\tParents: (%d, %d)\n", best_individual.parents[0], best_individual.parents[1]);
 
     free(parents);
     free(offspring);
