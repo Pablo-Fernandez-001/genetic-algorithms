@@ -20,14 +20,34 @@ typedef struct ind_t {
 
 } Individual;
 
-// Global variables for the populations
+// Global variables for the populations, roulette wheel selection, and best individual
 Individual* parents;
 Individual* offspring;
+Individual best_individual; // Its an struct of type Individual, to store the best individual of the population
 double* roulette;
 
 // Util variables
 unsigned chromosome_length;
 double crossover_probability;
+double mutation_probability;
+unsigned generation_count;
+
+
+// Function to get the parameters from the user
+void getParameters() {
+    /*
+       Here we can add the random seed, and the population size if we have our own functions
+       in this case we're using the rand() function from the stdlib.h library, and the population 
+       size is fixed to 100 individuals, a constant.
+    */
+
+    printf("Enter the crossover probability (0.0 - 1.0): ");
+    scanf("%lf", &crossover_probability);
+    printf("Enter the mutation probability (0.0 - 1.0): ");
+    scanf("%lf", &mutation_probability);
+    printf("Enter the max number of generations: ");
+    scanf("%u", &generation_count);
+}
 
 // Function to serve the memory for the individuals
 void allocateMemory() {
@@ -128,7 +148,7 @@ void crossover(Individual* father, Individual* mother, Individual* child1, Indiv
         // Randomly select a crossover point
         unsigned p = (unsigned)radomDouble(1, chromosome_length - 2); // Randomly select a crossover point
         // Copy genes from parents to children based on the crossover point
-        for(i = 0; i < p; i++) {
+        for(i = 0; i <= p; i++) {
             child1->chromosome[i] = father->chromosome[i]; // Copy genes from father to child1 up to the crossover point
             child2->chromosome[p+i] = mother->chromosome[i]; // Copy genes from mother to child2 up to the crossover point
         }
@@ -181,8 +201,50 @@ void crossover(Individual* father, Individual* mother, Individual* child1, Indiv
 
 */
 
+// Perform mutation on an individual
+void mutation(Individual* individual){
+    // if the mutation occurs based on the mutation probability, flip a random bit in the chromosome
+    if(flip(mutation_probability)) {
+        // Randomly select a mutation place
+        unsigned p = (unsigned)randomDouble(0, chromosome_length - 1); // in this case we can use 0
+        // Flip the bit at the mutation point
+        individual->chromosome[p] = 1 - individual->chromosome[p]; // Flip the bit at the mutation point
+        individual->mutation_place = p; // Store the mutation point in the individual
+    } else {
+        individual->mutation_place = -1; // No mutation occurred
+    }
+}
+
+
+// Implement elitism by replacing the worst individuals in the offspring with the best individual from the parents
+// Most addapdet will survive to the next generation, and the worst will be replaced by the best of the previous generation
+void elitism(){
+    // The 2 worst individuals are replaced by the 2 best individuals of the previous generation
+    unsigned worst_child1 = 0, worst_child2 = 0;
+    
+    // A struct if both have the same memory, and the same order you can only equalize the first one, and the second one will be equal too
+    best_individual = parents[0];
+
+    for(int i = 0; i < POPULATION_SIZE; i++){
+        if(offspring[i].fitness < offspring[worst_child1].fitness){
+            worst_child1 = i;
+        }else if(offspring[i].fitness < offspring[worst_child2].fitness){
+            worst_child2 = i;
+        }
+
+        if(parents[i].fitness > best_individual.fitness){
+            best_individual = parents[i];
+        }
+    }
+
+    // Replace the worst individuals in the offspring with the best individual from the parents
+    offspring[worst_child1] = best_individual;
+    offspring[worst_child2] = best_individual;
+}
+
 // Main function
 int main(){
+    getParameters(); // Get the parameters from the user
     srand((long)time(NULL)); // Seed for random number generation
     // Allocate memory for the individuals
     allocateMemory();
@@ -190,5 +252,28 @@ int main(){
     createFirstGeneration();
     // Evaluate the target function for the entire population
     evaluatePopulation(parents);
+    //update roulette wheel selection probabilities based on the fitness of the individuals
+    updateRoulette(parents);
+    // making the generations
+    for(int generation = 0; generation < generation_count; generation++){
+        // Generation process
+        for(int i = 0; i < POPULATION_SIZE; i += 2){
+            // Select parents using roulette wheel selection
+            unsigned father_selected = rouletteWheelSelection();
+            unsigned mother_selected = rouletteWheelSelection();
+            // Perform crossover to produce offspring
+            crossover(&parents[father_selected], &parents[mother_selected], &offspring[i], &offspring[i + 1]);
+            // Perform mutation on the offspring
+            mutation(&offspring[i]);
+            mutation(&offspring[i + 1]);
+        }
+        // Evaluate population
+        evaluatePopulation(offspring);
+        // Apply elitism to ensure the best individuals survive to the next generation
+        elitism();
+        parents = offspring; // Move to the next generation
+        // Update roulette wheel selection probabilities based on the fitness of the new population
+        updateRoulette(parents);
+    }
     return 0;
 }
