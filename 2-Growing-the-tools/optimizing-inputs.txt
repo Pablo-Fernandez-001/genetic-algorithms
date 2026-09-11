@@ -1,0 +1,34 @@
+# 1. Create the input file automatically using the professor's parameters
+printf "100\n0.7\n0.01\n" > in.dat
+
+# 2. Verify its contents
+cat in.dat
+
+# 3. Compile main.c
+gcc -std=c11 -Wall -Wextra main.c -o main -lm
+
+# 4. Run using in.dat as input and save the output to out.log
+./main < in.dat > out.log
+
+# 5. Verify the generated output
+cat out.log
+
+
+# Or in one line with the making, compiling and execution of all the project:
+printf "100\n0.7\n0.01\n" > in.dat && gcc -std=c11 -Wall -Wextra main.c -o main -lm && ./main < in.dat > out.log
+
+
+# Same compilation style used by the professor:
+gcc main.c -lm
+
+
+# Run manually, like the professor:
+./a.out
+
+
+# Run automatically with the professor's parameters:
+printf "100\n0.7\n0.01\n" | ./a.out
+
+
+# Run automatically and save all the output:
+printf "100\n0.7\n0.01\n" | ./a.out > out.log
